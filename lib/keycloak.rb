@@ -150,6 +150,28 @@ module Keycloak
       exec_request _request
     end
 
+    def self.get_token_authorized(resource, scope)
+      verify_setup
+
+      token = self.token["access_token"]
+      payload = { "grant_type"=>"urn:ietf:params:oauth:grant-type:uma-ticket",
+                  "audience"=>"console-app",
+                  "permission"=>"#{resource}##{scope}" }
+
+      authorization = "Bearer #{token}"
+
+      header = {'Content-Type' => 'application/json',
+                'authorization' => authorization}
+
+      _request = -> do
+        RestClient.post(@configuration['token_endpoint'], payload, header){|response, request, result|
+          response
+        }
+      end
+
+      exec_request _request
+    end
+
     def self.url_login_redirect(redirect_uri, response_type = 'code')
       verify_setup
 
@@ -247,6 +269,20 @@ module Keycloak
 
       begin
         JSON(get_token_introspection(access_token))['active'] === true
+      rescue => e
+        if e.class < Keycloak::KeycloakException
+          raise
+        else
+          false
+        end
+      end
+    end
+
+    def self.authorized?(resource, scope)
+      begin
+        response = get_token_authorized(resource, scope)
+        return false if response.code == 403
+        true
       rescue => e
         if e.class < Keycloak::KeycloakException
           raise
@@ -789,24 +825,24 @@ module Keycloak
 
           Keycloak::Client.exec_request _request
         ensure
-          # if tk
-          #   payload = { 'client_id' => Keycloak::Client.client_id,
-          #               'client_secret' => Keycloak::Client.secret,
-          #               'refresh_token' => tk["refresh_token"] }
+          if tk
+            payload = { 'client_id' => Keycloak::Client.client_id,
+                        'client_secret' => Keycloak::Client.secret,
+                        'refresh_token' => tk["refresh_token"] }
 
-          #   header = {'Content-Type' => 'application/x-www-form-urlencoded'}
-          #   _request = -> do
-          #     RestClient.post(Keycloak::Client.configuration['end_session_endpoint'], payload, header){|response, request, result|
-          #       case response.code
-          #       when 200..399
-          #         resp if resp.nil?
-          #       else
-          #         response.return!
-          #       end
-          #     }
-          #   end
-          #   Keycloak::Client.exec_request _request
-          # end
+            header = {'Content-Type' => 'application/x-www-form-urlencoded'}
+            _request = -> do
+              RestClient.post(Keycloak::Client.configuration['end_session_endpoint'], payload, header){|response, request, result|
+                case response.code
+                when 200..399
+                  resp if resp.nil?
+                else
+                  response.return!
+                end
+              }
+            end
+            Keycloak::Client.exec_request _request
+          end
         end
       end
 
