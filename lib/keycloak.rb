@@ -155,7 +155,7 @@ module Keycloak
 
       token = self.token["access_token"]
       payload = { "grant_type"=>"urn:ietf:params:oauth:grant-type:uma-ticket",
-                  "audience"=>"console-app",
+                  "audience"=>@client_id,
                   "permission"=>"#{resource}##{scope}" }
 
       authorization = "Bearer #{token}"
